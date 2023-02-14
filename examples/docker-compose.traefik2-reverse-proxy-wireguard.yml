@@ -1,0 +1,58 @@
+version: '3'
+
+services:
+  mongo:
+    image: mongo:6.0.4
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: pritunl
+      MONGO_INITDB_ROOT_PASSWORD: passpasswordpass
+    volumes:
+      - ./mongo_db_data:/data/db
+    ports:
+      - 27017
+    networks:
+      - pritunl
+    restart: always
+
+  pritunl:
+    image: goofball222/pritunl:1.30.3431.73
+    depends_on:
+        - mongo
+    privileged: true
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+    links:
+      - mongo
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - 80
+      - 443
+      - 1194:1194
+      - 1194:1194/udp
+      - 1195:1195/udp
+    environment:
+      - TZ=UTC
+      - MONGODB_URI=mongodb://pritunl:passpasswordpass@mongo:27017/pritunl?authMechanism=SCRAM-SHA-1&authSource=admin
+      - DEBUG=true
+      - REVERSE_PROXY=true
+      - WIREGUARD=true
+    networks:
+      - pritunl
+      - traefik
+    restart: always
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.pritunl.loadbalancer.server.port=443
+      - traefik.http.services.pritunl.loadbalancer.server.scheme=https
+      - traefik.http.routers.pritunl.rule=Host(`pritunl.mydomain.com`)
+      - traefik.http.routers.pritunl.entrypoints=websecure
+      - traefik.http.routers.pritunl.service=pritunl
+      - traefik.http.routers.pritunl.tls=true
+      - traefik.http.routers.pritunl.tls.certresolver=cloudflare
+
+networks:
+  pritunl:
+    external: false
+  traefik:
+    external: true
